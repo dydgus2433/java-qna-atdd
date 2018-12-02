@@ -1,10 +1,15 @@
 package nextstep.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import nextstep.CannotDeleteException;
+import nextstep.UnAuthorizedException;
 import support.domain.AbstractEntity;
 import support.domain.UrlGeneratable;
 
 import javax.persistence.*;
 import javax.validation.constraints.Size;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 public class Answer extends AbstractEntity implements UrlGeneratable {
@@ -38,8 +43,21 @@ public class Answer extends AbstractEntity implements UrlGeneratable {
         this.deleted = false;
     }
 
-    public User getWriter() {
-        return writer;
+    public static Answer of(User writer, String contents) {
+        if (writer == null || writer.isGuestUser()) {
+            throw new UnAuthorizedException();
+        }
+        return new Answer(writer, contents);
+    }
+
+    public static Answer ofQuestion(Long id, User writer, Question question, String contents) {
+        if (writer == null || writer.isGuestUser()) {
+            throw new UnAuthorizedException();
+        }
+        if (question == null) {
+            throw new UnAuthorizedException();
+        }
+        return new Answer(id, writer, question, contents);
     }
 
     public Question getQuestion() {
@@ -75,5 +93,21 @@ public class Answer extends AbstractEntity implements UrlGeneratable {
     @Override
     public String toString() {
         return "Answer [id=" + getId() + ", writer=" + writer + ", contents=" + contents + "]";
+    }
+
+    public Answer update(User loginUser, String contents) {
+        if (!writer.equals(loginUser)) {
+            throw new UnAuthorizedException();
+        }
+        this.contents = contents;
+        return this;
+    }
+
+    public DeleteHistory delete(User loginUser) throws CannotDeleteException {
+        if (!isOwner(loginUser)) {
+            throw new CannotDeleteException("삭제권한없습니다.");
+        }
+        this.deleted = true;
+        return DeleteHistory.of(ContentType.ANSWER, getId(), loginUser);
     }
 }
